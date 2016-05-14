@@ -6,7 +6,7 @@
 class XYRect : public Hitable
 {
 public:
-    XYRect(glm::vec2 x_dim, glm::vec2 y_dim, float k, const std::shared_ptr<Material>& mat);
+    XYRect(const glm::vec2& x_dim, const glm::vec2& y_dim, float k, const std::shared_ptr<Material>& mat);
     virtual bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
     virtual bool computeAABBox(float t0, float t1, AABBox& bbox) const;
 

@@ -1,6 +1,6 @@
 #include "xyrect.h"
 
-XYRect::XYRect(glm::vec2 x_dim, glm::vec2 y_dim, float k, const std::shared_ptr<Material> &mat)
+XYRect::XYRect(const glm::vec2 &x_dim, const glm::vec2 &y_dim, float k, const std::shared_ptr<Material> &mat)
     : _x_dim(x_dim), _y_dim(y_dim), _k(k), _mat(mat)
 {
 

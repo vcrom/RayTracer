@@ -17,7 +17,7 @@ private:
 
     glm::vec3 color(const Ray& r, const Hitable &world, int depth);
 
-    const int num_rays = 100;
+    const int num_rays = 1000;
     const int max_bounces = 50;
     const float time0 = 0.0;
     const float time1 = 1.0;
