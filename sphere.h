@@ -7,9 +7,11 @@ class Sphere : public Hitable
 {
 public:
     Sphere(const glm::vec3& cen, float rad, const std::shared_ptr<Material>& mat);
-    virtual inline bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const override;
+    virtual bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const override;
     virtual bool computeAABBox(float t0, float t1, AABBox& bbox) const override;
 
+protected:
+    static glm::vec2 getSphereUV(const glm::vec3& p);
 
 
 private:

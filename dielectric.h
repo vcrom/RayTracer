@@ -7,7 +7,7 @@ class Dielectric : public Material
 {
 public:
     Dielectric(float ri);
-    virtual inline bool scatter(const Ray& r_in, const hit_record& rec, glm::vec3& attenuation, Ray& scattered) const;
+    virtual inline bool scatter(const Ray& r_in, const hit_record& rec, glm::vec3& attenuation, Ray& scattered) const override;
 private:
     float _refraction_idx;
 };

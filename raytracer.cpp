@@ -14,6 +14,11 @@
 #include "constanttexture.h"
 #include "checkertexture.h"
 #include "noisetexture.h"
+#include "diffuselight.h"
+#include "xyrect.h"
+#include "xzrect.h"
+#include "yzrect.h"
+#include "flipnormals.h"
 
 using uint = unsigned int;
 using uchar = unsigned char;
@@ -46,12 +51,16 @@ glm::vec3 RayTracer::color(const Ray& r, const Hitable& world, int depth)
     {
         Ray scattered;
         glm::vec3 attenuation;
+        glm::vec3 emitted = rec.mat->emitted(rec.uv, rec.p);
         if(depth < max_bounces && rec.mat->scatter(r, rec, attenuation, scattered))
         {
-            return attenuation*color(scattered, world, ++depth);
+            return emitted + attenuation*color(scattered, world, ++depth);
         }
-        return glm::vec3(0);
+        return emitted;
     }
+
+    return glm::vec3(0);
+
     auto dir = r.dir();
     float t = 0.5f*(dir.y + 1.0);
     return glm::mix(glm::vec3(1), glm::vec3(0.5, 0.7, 1.0), t);
@@ -161,6 +170,32 @@ BVH basicScene(float t0, float t1)
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,1,-4), 1.0, std::shared_ptr<Material>(new Lambertian(check_tex)))));
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(4,1,0), 1.0, std::shared_ptr<Material>(new Metal(glm::vec3(0.7, 0.6, 0.5), 1.0f)))));
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(-4,1,0), 1.0, std::shared_ptr<Material>(new Metal(glm::vec3(0, 0.2, 0.1))))));
+    list.push_back(std::unique_ptr<Hitable>(new XYRect(glm::vec2(-4,4), glm::vec2(0,3), -4.0, std::shared_ptr<Material>(new Metal(glm::vec3(0.7, 0.7, 0.7), 0.95f)))));
+
+    //lights
+    list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,6,0), 3, std::shared_ptr<Material>(new DiffuseLight(glm::vec3(1.0))))));
+    std::cout << list.size() << std::endl;
+    return BVH(list, t0, t1);
+}
+
+BVH cornellBox(float t0, float t1)
+{
+    std::vector<std::unique_ptr<Hitable>> list;
+    auto red = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.65, 0.05, 0.05)));
+    auto white = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.73, 0.73, 0.73)));
+    auto green = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.12, 0.45, 0.15)));
+    auto light = std::shared_ptr<Material>(new DiffuseLight(glm::vec3(15.0f)));
+
+    //walls
+    list.push_back(std::unique_ptr<Hitable>(new FlipNormals(std::shared_ptr<Hitable>(new YZRect(glm::vec2(0, 555), glm::vec2(0, 555), 555, green)))));//left
+    list.push_back(std::unique_ptr<Hitable>(new YZRect(glm::vec2(0, 555), glm::vec2(0, 555), 0, red))); //right
+    list.push_back(std::unique_ptr<Hitable>(new XZRect(glm::vec2(0, 555), glm::vec2(0, 555), 0, white))); //ground
+    list.push_back(std::unique_ptr<Hitable>(new FlipNormals(std::shared_ptr<Hitable>(new XZRect(glm::vec2(0, 555), glm::vec2(0, 555), 555, white)))));//ceiling
+    list.push_back(std::unique_ptr<Hitable>(new FlipNormals(std::shared_ptr<Hitable>(new XYRect(glm::vec2(0, 555), glm::vec2(0, 555), 555, white)))));//back
+
+    //light
+    list.push_back(std::unique_ptr<Hitable>(new XZRect(glm::vec2(213, 343), glm::vec2(227, 332), 554, light)));
+
     std::cout << list.size() << std::endl;
     return BVH(list, t0, t1);
 }
@@ -179,13 +214,25 @@ Camera initCam(int w, int h, float time0, float time1)
 
 Camera initCamBasic(int w, int h, float time0, float time1)
 {
-    auto pos = glm::vec3(6, 2, 6);
+    auto pos = glm::vec3(6, 3, 6);
     auto look_at = glm::vec3(0, 1, 0);
     auto up = glm::vec3(0, 1, 0);
     auto fov = glm::radians(50.0f);
     auto aspect = static_cast<float>(w)/static_cast<float>(h);
     auto aperture = 0.05f;
     auto dist_to_focus = glm::length(pos - look_at);
+    return Camera(pos, look_at, up, fov, aspect, aperture, dist_to_focus, time0, time1);
+}
+
+Camera initCamCornell(int w, int h, float time0, float time1)
+{
+    auto pos = glm::vec3(278, 278, -800);
+    auto look_at = glm::vec3(278, 278, 0);
+    auto up = glm::vec3(0, 1, 0);
+    auto fov = glm::radians(40.0f);
+    auto aspect = static_cast<float>(w)/static_cast<float>(h);
+    auto aperture = 0.00f;
+    auto dist_to_focus = 10.0f;//glm::length(pos - look_at);
     return Camera(pos, look_at, up, fov, aspect, aperture, dist_to_focus, time0, time1);
 }
 
@@ -196,11 +243,16 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
     //auto scene = bookCover(time0, time1);
     //auto scene = bookCoverList(time0, time1);
     //auto scene = initScene(time0, time1);
-    auto scene = basicScene(time0, time1);
+    //auto scene = basicScene(time0, time1);
+     auto scene = cornellBox(time0, time1);
 
     std::cout << "Scene initialized " << std::endl;
+
     //auto cam = initCam(width, height, time0, time1);
-    auto cam = initCamBasic(width, height, time0, time1);
+    //auto cam = initCamBasic(width, height, time0, time1);
+    auto cam = initCamCornell(width, height, time0, time1);
+
+
     std::cout << "Cam initialized" << std::endl;
 
     double start_time = omp_get_wtime();
@@ -219,6 +271,7 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
             p_color/=static_cast<float>(num_rays);
             p_color = glm::pow(p_color, glm::vec3(1/2.2f));
             p_color *= 255;
+            p_color = glm::clamp(p_color, 0.0f, 255.0f);
             image[image.size()-1 - i][j] = p_color;
         }
     double end_time = omp_get_wtime();

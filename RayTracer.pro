@@ -30,7 +30,14 @@ SOURCES += main.cpp\
     constanttexture.cpp \
     checkertexture.cpp \
     perlin.cpp \
-    noisetexture.cpp
+    noisetexture.cpp \
+    diffuselight.cpp \
+    material.cpp \
+    xyrect.cpp \
+    xzrect.cpp \
+    yzrect.cpp \
+    flipnormals.cpp \
+    aabox.cpp
 
 HEADERS  += mainwindow.h \
     imagecontainer.h \
@@ -52,7 +59,13 @@ HEADERS  += mainwindow.h \
     constanttexture.h \
     checkertexture.h \
     perlin.h \
-    noisetexture.h
+    noisetexture.h \
+    diffuselight.h \
+    xyrect.h \
+    xzrect.h \
+    yzrect.h \
+    flipnormals.h \
+    aabox.h
 
 FORMS    += mainwindow.ui
 

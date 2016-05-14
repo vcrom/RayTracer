@@ -11,7 +11,7 @@ glm::vec3 MovingSphere::center(float time) const
     return _cen0 + (time - _time0)/(_time1-_time0)*(_cen1 - _cen0);
 }
 
-bool MovingSphere::hit(const Ray& r, float t_min, float t_max, hit_record& rec) const
+inline bool MovingSphere::hit(const Ray& r, float t_min, float t_max, hit_record& rec) const
 {
     auto sph_cen = center(r.time());
     auto oc =r.origin() - sph_cen;
@@ -42,7 +42,7 @@ bool MovingSphere::hit(const Ray& r, float t_min, float t_max, hit_record& rec) 
 }
 
 #include "sphere.h"
-bool MovingSphere::computeAABBox(float t0, float t1, AABBox& bbox) const
+inline bool MovingSphere::computeAABBox(float t0, float t1, AABBox& bbox) const
 {
     Sphere s0(center(t0), _rad, _material);
     Sphere s1(center(t1), _rad, _material);

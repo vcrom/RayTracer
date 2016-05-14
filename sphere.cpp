@@ -5,7 +5,7 @@ Sphere::Sphere(const glm::vec3& cen, float rad, const std::shared_ptr<Material>&
 {
 }
 
-bool Sphere::hit(const Ray& r, float t_min, float t_max, hit_record& rec) const
+inline bool Sphere::hit(const Ray& r, float t_min, float t_max, hit_record& rec) const
 {
     glm::vec3 oc =r.origin() - _cen;
     auto a = glm::dot(r.dir(), r.dir());
@@ -28,14 +28,22 @@ bool Sphere::hit(const Ray& r, float t_min, float t_max, hit_record& rec) const
             rec.p = r.pointAtParam(tmp);
             rec.n = (rec.p - _cen)/_rad;
             rec.mat = _material;
+            rec.uv = Sphere::getSphereUV(rec.p);
             return true;
         }
     }
     return false;
 }
 
-bool Sphere::computeAABBox(float, float, AABBox& bbox) const
+inline bool Sphere::computeAABBox(float, float, AABBox& bbox) const
 {
     bbox = AABBox(_cen - glm::vec3(glm::abs(_rad)), _cen + glm::vec3(glm::abs(_rad)));
     return true;
+}
+
+inline glm::vec2 Sphere::getSphereUV(const glm::vec3& p)
+{
+    float phi = glm::atan(p.z/p.x);
+    float theta = glm::asin(p.y);
+    return glm::vec2(1.0-(phi + M_PI)/(2*M_PI), (theta + M_PI/2.0)/M_PI);
 }
