@@ -256,9 +256,10 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
     std::cout << "Cam initialized" << std::endl;
 
     double start_time = omp_get_wtime();
-    # pragma omp parallel for collapse(2) schedule(dynamic)
-    for(uint i = 0; i < image.size(); ++i)
-        for(uint j = 0; j < image[0].size(); ++j)
+    # pragma omp parallel for schedule(dynamic)
+    for(int i = 0; i < image.size(); ++i)
+    {
+        for(int j = 0; j < image[0].size(); ++j)
         {
             auto p_color = glm::vec3(0);
             for(int k = 0; k < num_rays; ++k)
@@ -274,6 +275,7 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
             p_color = glm::clamp(p_color, 0.0f, 255.0f);
             image[image.size()-1 - i][j] = p_color;
         }
+    }
     double end_time = omp_get_wtime();
     std::cout << "Rendered in " << end_time-start_time << " seconds." << std::endl;
     return image;

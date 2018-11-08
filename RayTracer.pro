@@ -69,5 +69,9 @@ HEADERS  += mainwindow.h \
 
 FORMS    += mainwindow.ui
 
+win32 {
+QMAKE_CXXFLAGS+= /openmp /O2
+}
+unix {
 QMAKE_CXXFLAGS+= -fopenmp -O2
-QMAKE_LFLAGS +=  -fopenmp -O2
+}

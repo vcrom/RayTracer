@@ -1,4 +1,10 @@
 #include "sphere.h"
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+#ifndef M_PI
+   #define M_PI 3.14159265358979323846264338327950288
+#endif
 
 Sphere::Sphere(const glm::vec3& cen, float rad, const std::shared_ptr<Material>& mat)
     : _cen(cen), _rad(rad), _material(mat)
