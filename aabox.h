@@ -9,7 +9,8 @@ class AABox : public Hitable
 public:
     AABox(const glm::vec3& p0, const glm::vec3& p1, std::shared_ptr<Material> material);
     virtual bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const override;
-    virtual bool computeAABBox(float t0, float t1, AABBox& bbox) const override;
+    bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const override;
+    bool computeAABBox(float t0, float t1, AABBox& bbox) const override;
 
 private:
     glm::vec3 _pmin, _pmax;

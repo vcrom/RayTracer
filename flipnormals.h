@@ -6,6 +6,7 @@
 class FlipNormals : public Hitable
 {
 public:
+    FlipNormals(Hitable* ptr);
     FlipNormals(std::shared_ptr<Hitable> ptr);
     virtual bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
     virtual bool computeAABBox(float t0, float t1, AABBox& bbox) const;

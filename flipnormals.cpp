@@ -1,5 +1,10 @@
 #include "flipnormals.h"
 
+FlipNormals::FlipNormals(Hitable* ptr)
+    : _object(std::shared_ptr<Hitable>(ptr))
+{
+
+}
 FlipNormals::FlipNormals(std::shared_ptr<Hitable> ptr)
     : _object(ptr)
 {
