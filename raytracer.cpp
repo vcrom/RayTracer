@@ -3,8 +3,6 @@
 #include "hitablelist.h"
 #include "sphere.h"
 #include "camera.h"
-#include <omp.h>
-#include <iostream>
 #include "utils.h"
 #include "lambertian.h"
 #include "metal.h"
@@ -19,6 +17,9 @@
 #include "xzrect.h"
 #include "yzrect.h"
 #include "flipnormals.h"
+
+#include <omp.h>
+#include <iostream>
 
 using uint = unsigned int;
 using uchar = unsigned char;
@@ -61,8 +62,8 @@ glm::vec3 RayTracer::color(const Ray& r, const Hitable& world, int depth)
 
     return glm::vec3(0);
 
-    auto dir = r.dir();
-    float t = 0.5f*(dir.y + 1.0);
+    const auto dir = r.dir();
+    const auto t = 0.5f*(dir.y + 1.0f);
     return glm::mix(glm::vec3(1), glm::vec3(0.5, 0.7, 1.0), t);
 
 }
@@ -181,10 +182,10 @@ BVH basicScene(float t0, float t1)
 BVH cornellBox(float t0, float t1)
 {
     std::vector<std::unique_ptr<Hitable>> list;
-    auto red = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.65, 0.05, 0.05)));
-    auto white = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.73, 0.73, 0.73)));
-    auto green = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.12, 0.45, 0.15)));
-    auto light = std::shared_ptr<Material>(new DiffuseLight(glm::vec3(15.0f)));
+    const auto red = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.65, 0.05, 0.05)));
+    const auto white = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.73, 0.73, 0.73)));
+    const auto green = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.12, 0.45, 0.15)));
+    const auto light = std::shared_ptr<Material>(new DiffuseLight(glm::vec3(15.0f)));
 
     //walls
     list.push_back(std::unique_ptr<Hitable>(new FlipNormals(std::shared_ptr<Hitable>(new YZRect(glm::vec2(0, 555), glm::vec2(0, 555), 555, green)))));//left
@@ -244,7 +245,7 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
     //auto scene = bookCoverList(time0, time1);
     //auto scene = initScene(time0, time1);
     //auto scene = basicScene(time0, time1);
-     auto scene = cornellBox(time0, time1);
+    auto scene = cornellBox(time0, time1);
 
     std::cout << "Scene initialized " << std::endl;
 
