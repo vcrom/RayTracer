@@ -2,6 +2,7 @@
 
 #include "utils.h"
 #include <algorithm>
+#include <random>
 
 //init static vars
 std::vector<int> Perlin::_perm_x = Perlin::PerlinGenPerm();
@@ -66,7 +67,11 @@ std::vector<int> Perlin::PerlinGenPerm()
     auto v = std::vector<int>(256);
     for(std::size_t i = 0; i < v.size(); ++i)
         v[i] = i;
-    std::random_shuffle(v.begin(), v.end());
+    // std::random_shuffle was removed in C++17; std::shuffle with an
+    // explicit engine is the replacement.
+    static std::random_device rd;
+    static std::mt19937 rng(rd());
+    std::shuffle(v.begin(), v.end(), rng);
     return v;
 }
 
