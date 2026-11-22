@@ -38,6 +38,7 @@ RayTracer
 
 # CMake + Conan (modern build)
 /build/
+CMakeUserPresets.json
 conan.lock
 *.ppm
 *.png
