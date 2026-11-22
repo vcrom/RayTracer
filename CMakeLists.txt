@@ -1,4 +1,41 @@
-cmake_minimum_required(VERSION 3.20)
+# Conan 2 dependency provider, in the spirit of vcrom/OpenGlApp: that
+# project downloads conan.cmake at configure time and runs
+# conan_cmake_run() itself. The Conan 1 helper (and the bincrafters
+# remote) are obsolete, so the modern equivalent is the official
+# cmake-conan provider (conan-io/cmake-conan, develop2 branch):
+# CMake calls it from find_package() when a package is missing, and
+# it runs `conan install` on the conanfile.txt in this directory,
+# then retries the find_package() call.
+# No manual `conan install` and no -DCMAKE_TOOLCHAIN_FILE are needed:
+#   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+#   cmake --build build -j
+# Passing a Conan toolchain file explicitly still works: the packages
+# are then found directly and the provider never fires.
+# Requires CMake 3.24+ (CMAKE_PROJECT_TOP_LEVEL_INCLUDES).
+# Note: there is no cmake-conan2 repo — the provider lives in
+# conan-io/cmake-conan on the develop2 branch.
+cmake_minimum_required(VERSION 3.24)
+
+if(NOT CMAKE_PROJECT_TOP_LEVEL_INCLUDES AND NOT CMAKE_TOOLCHAIN_FILE)
+    find_program(CONAN_CMD conan)
+    if(NOT CONAN_CMD)
+        message(FATAL_ERROR "Conan executable not found in PATH; install Conan 2 "
+                "(e.g. `pip install conan`) or configure with an explicit Conan "
+                "toolchain file: -DCMAKE_TOOLCHAIN_FILE=build/Release/generators/conan_toolchain.cmake")
+    endif()
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan_provider.cmake")
+        message(STATUS "Downloading conan_provider.cmake from https://github.com/conan-io/cmake-conan (develop2)")
+        file(DOWNLOAD "https://github.com/conan-io/cmake-conan/raw/develop2/conan_provider.cmake"
+             "${CMAKE_BINARY_DIR}/conan_provider.cmake"
+             STATUS _conan_provider_dl_status)
+        list(GET _conan_provider_dl_status 0 _conan_provider_dl_code)
+        if(NOT _conan_provider_dl_code EQUAL 0)
+            message(FATAL_ERROR "Failed to download conan_provider.cmake: ${_conan_provider_dl_status}")
+        endif()
+    endif()
+    set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${CMAKE_BINARY_DIR}/conan_provider.cmake")
+endif()
+
 project(RayTracerModern CXX)
 
 # C++23 (GCC 13 supports -std=c++23). The original code was pre-C++17;

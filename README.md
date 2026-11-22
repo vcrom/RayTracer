@@ -7,21 +7,39 @@ This is an initial version where I implemented the techniques described in the f
 ### Build (modernised: CMake + Conan, C++23, GLFW + Dear ImGui)
 
 The original Qt 5 / qmake build was replaced (see git history — the
-import commit preserves it). Dependencies are managed by Conan 2:
+import commit preserves it). Dependencies are managed by Conan 2,
+and CMake invokes Conan itself — no manual `conan install`, no
+`-DCMAKE_TOOLCHAIN_FILE` needed. This follows the pattern of
+vcrom/OpenGlApp, which downloads its Conan helper at configure time;
+the Conan 1 helper it used is obsolete, so this project uses the
+official Conan 2 dependency provider instead
+(`conan-io/cmake-conan`, `develop2` branch, `conan_provider.cmake`,
+downloaded into the build dir at configure time). Requires CMake
+3.24+ and Conan 2 on PATH:
 
 ```sh
 # once: pip install conan   (Conan 2.x)
-conan install . --build=missing
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=build/Release/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ./build/RayTracerModern
 ```
 
-Requires a C++23 compiler (GCC 13+, `-std=c++23`), CMake 3.20+,
+A second configure reuses the already-installed Conan packages
+(Conan's own cache check), so it is fast. If you already have a
+Conan toolchain file, passing it explicitly still works and the
+provider simply never fires:
+
+```sh
+conan install . --build=missing
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=build/Release/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+Requires a C++23 compiler (GCC 13+, `-std=c++23`), CMake 3.24+,
 OpenMP, and on Linux the X11/GL development packages GLFW needs
 (`libgl1-mesa-dev`, `libx11-dev`, `libxrandr-dev`, `libxinerama-dev`,
-`libxcursor-dev`, `libxi-dev`, ... — `conan install` will list any
-that are missing).
+`libxcursor-dev`, `libxi-dev`, ... — Conan's `opengl/system` and
+`xorg/system` checks will list any that are missing).
 
 ### Usage
 
