@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -81,10 +82,113 @@ Scene scene_from_index(int i)
     }
 }
 
+std::optional<Scene> scene_from_name(const char* name)
+{
+    if (std::strcmp(name, "cornell") == 0)
+        return Scene::Cornell;
+    if (std::strcmp(name, "bookcover") == 0 ||
+        std::strcmp(name, "book-cover") == 0)
+        return Scene::BookCover;
+    if (std::strcmp(name, "basic") == 0)
+        return Scene::Basic;
+    if (std::strcmp(name, "simple") == 0)
+        return Scene::Simple;
+    return std::nullopt;
+}
+
+void print_usage(const char* prog)
+{
+    std::fprintf(stderr,
+        "Usage:\n"
+        "  %s [--headless] [--width N] [--height N] [--samples N]\n"
+        "     [--scene cornell|bookcover|basic|simple] [--output FILE]\n"
+        "\n"
+        "Without --headless, opens the GLFW + ImGui GUI.\n"
+        "With --headless, renders without a display and writes a PNG.\n"
+        "Headless defaults: 256x256, 100 samples, cornell, out.png.\n",
+        prog);
+}
+
+// Headless mode: render on the calling thread, print progress to stderr.
+int headless_main(int argc, char** argv)
+{
+    int width = 256;
+    int height = 256;
+    int samples = 100;
+    Scene scene = Scene::Cornell;
+    const char* output = "out.png";
+
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        auto value = [&](const char* flag) -> const char* {
+            if (arg == flag && i + 1 < argc)
+                return argv[++i];
+            return nullptr;
+        };
+        const char* v = nullptr;
+        if (arg == "--help") {
+            print_usage(argv[0]);
+            return 0;
+        } else if (arg == "--headless") {
+            continue;
+        } else if ((v = value("--width")) != nullptr) {
+            width = std::atoi(v);
+        } else if ((v = value("--height")) != nullptr) {
+            height = std::atoi(v);
+        } else if ((v = value("--samples")) != nullptr) {
+            samples = std::atoi(v);
+        } else if ((v = value("--scene")) != nullptr) {
+            auto s = scene_from_name(v);
+            if (!s) {
+                std::fprintf(stderr, "Unknown scene '%s'\n", v);
+                print_usage(argv[0]);
+                return 1;
+            }
+            scene = *s;
+        } else if ((v = value("--output")) != nullptr) {
+            output = v;
+        } else {
+            std::fprintf(stderr, "Unknown argument '%s'\n", arg.c_str());
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+    if (width <= 0 || height <= 0 || samples <= 0) {
+        std::fprintf(stderr, "width, height and samples must be positive\n");
+        return 1;
+    }
+
+    std::fprintf(stderr, "Rendering %s %dx%d, %d samples...\n",
+                 sceneName(scene), width, height, samples);
+    std::atomic<int> rows_done{0};
+    const auto t0 = std::chrono::steady_clock::now();
+    RayTracer rt;
+    std::vector<unsigned char> pixels =
+        rt.render(width, height, samples, scene, &rows_done);
+    const auto t1 = std::chrono::steady_clock::now();
+    const double seconds = std::chrono::duration<double>(t1 - t0).count();
+    std::fprintf(stderr, "Rendered in %.1f s.\n", seconds);
+    if (!save_png(output, pixels, width, height)) {
+        std::fprintf(stderr, "Failed to write %s\n", output);
+        return 1;
+    }
+    std::fprintf(stderr, "Wrote %s (%dx%d)\n", output, width, height);
+    return 0;
+}
+
 } // namespace
 
-int main(int /*argc*/, char** /*argv*/)
+int main(int argc, char** argv)
 {
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--headless") == 0)
+            return headless_main(argc, argv);
+        if (std::strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        }
+    }
+
     if (!glfwInit()) {
         std::fprintf(stderr, "Failed to initialise GLFW\n");
         return 1;
