@@ -1,13 +1,12 @@
-## Basic Ray Tracer (modernised)
+## Basic Ray Tracer
 
 A simple Raytracer following the guidelines of the [Ray Tracing Minibooks](https://raytracing.github.io/) by Peter Shirley.
 
 This is an initial version where I implemented the techniques described in the first book of the series and some of the second.
 
-### Build (modernised: CMake + Conan, C++23, GLFW + Dear ImGui)
+### Build (CMake + Conan, C++23, GLFW + Dear ImGui)
 
-The original Qt 5 / qmake build was replaced (see git history — the
-import commit preserves it). Dependencies are managed by Conan 2,
+The original Qt 5 / qmake build was replaced (see git history). Dependencies are managed by Conan 2,
 and CMake invokes Conan itself — no manual `conan install`, no
 `-DCMAKE_TOOLCHAIN_FILE` needed. This follows the pattern of
 vcrom/OpenGlApp, which downloads its Conan helper at configure time;
