@@ -1,19 +1,7 @@
-# Conan 2 dependency provider, in the spirit of vcrom/OpenGlApp: that
-# project downloads conan.cmake at configure time and runs
-# conan_cmake_run() itself. The Conan 1 helper (and the bincrafters
-# remote) are obsolete, so the modern equivalent is the official
-# cmake-conan provider (conan-io/cmake-conan, develop2 branch):
-# CMake calls it from find_package() when a package is missing, and
-# it runs `conan install` on the conanfile.txt in this directory,
-# then retries the find_package() call.
-# No manual `conan install` and no -DCMAKE_TOOLCHAIN_FILE are needed:
-#   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-#   cmake --build build -j
-# Passing a Conan toolchain file explicitly still works: the packages
-# are then found directly and the provider never fires.
-# Requires CMake 3.24+ (CMAKE_PROJECT_TOP_LEVEL_INCLUDES).
-# Note: there is no cmake-conan2 repo — the provider lives in
-# conan-io/cmake-conan on the develop2 branch.
+# Conan 2 dependency provider, as in vcrom/OpenGlApp but the Conan 2 way:
+# CMake runs `conan install` itself when a package is missing, so no manual
+# `conan install` or -DCMAKE_TOOLCHAIN_FILE is needed. Passing a toolchain
+# file explicitly still works. Requires CMake 3.24+.
 cmake_minimum_required(VERSION 3.24)
 
 if(NOT CMAKE_PROJECT_TOP_LEVEL_INCLUDES AND NOT CMAKE_TOOLCHAIN_FILE)
