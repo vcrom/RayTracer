@@ -35,3 +35,12 @@ Makefile*
 
 #Exec
 RayTracer
+
+# CMake + Conan (modern build)
+/build/
+CMakeUserPresets.json
+conan.lock
+*.ppm
+*.png
+# ImGui runtime state (created on GUI runs)
+imgui.ini
