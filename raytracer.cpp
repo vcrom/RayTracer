@@ -276,8 +276,9 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
     double start_time = omp_get_wtime();
     // Parallel over rows (was collapse(2) over pixels) so progress can be
     // reported per finished row to the UI / CLI.
+    // Signed loop variable: MSVC's OpenMP requires a signed integral type (C3016).
     # pragma omp parallel for schedule(dynamic)
-    for(uint i = 0; i < image.size(); ++i)
+    for(int i = 0; i < static_cast<int>(image.size()); ++i)
         for(uint j = 0; j < image[0].size(); ++j)
         {
             auto p_color = glm::vec3(0);

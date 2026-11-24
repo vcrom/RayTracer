@@ -1,4 +1,8 @@
 #include "sphere.h"
+#include <numbers>
+
+// std::numbers::pi (C++20) instead of M_PI, which MSVC only defines
+// with _USE_MATH_DEFINES.
 
 Sphere::Sphere(const glm::vec3& cen, float rad, const std::shared_ptr<Material>& mat)
     : _cen(cen), _rad(rad), _material(mat)
@@ -45,5 +49,5 @@ inline glm::vec2 Sphere::getSphereUV(const glm::vec3& p)
 {
     float phi = glm::atan(p.z/p.x);
     float theta = glm::asin(p.y);
-    return glm::vec2(1.0-(phi + M_PI)/(2*M_PI), (theta + M_PI/2.0)/M_PI);
+    return glm::vec2(1.0-(phi + std::numbers::pi)/(2*std::numbers::pi), (theta + std::numbers::pi/2.0)/std::numbers::pi);
 }
