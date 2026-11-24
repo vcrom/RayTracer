@@ -79,8 +79,10 @@ target_compile_options(raytracer_core PRIVATE -O2 -Wall -Wextra)
 # relative to the imgui target's include directory and compile them in.
 # INTERFACE_INCLUDE_DIRECTORIES arrives as a generator expression
 # ($<$<CONFIG:Release>:<pkg>/include>), so pull the real path out.
+# The ([A-Za-z]:)? keeps a Windows drive letter (C:/...); without it
+# the match starts at the first '/' and the path loses its drive.
 get_target_property(_imgui_include_dirs imgui::imgui INTERFACE_INCLUDE_DIRECTORIES)
-string(REGEX MATCH "/[^$>]*/p/include" _imgui_include_dir "${_imgui_include_dirs}")
+string(REGEX MATCH "([A-Za-z]:)?/[^$>]*/p/include" _imgui_include_dir "${_imgui_include_dirs}")
 if(NOT _imgui_include_dir)
     message(FATAL_ERROR "Could not locate imgui package include dir in: ${_imgui_include_dirs}")
 endif()
