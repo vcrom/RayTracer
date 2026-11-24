@@ -5,7 +5,10 @@
 // owns the window, the UI and PNG output.
 //
 // Rendering runs on a worker thread so the UI stays responsive and shows
-// progress; the image is uploaded as an OpenGL texture when done.
+// progress; the finished image is uploaded as an OpenGL texture and drawn
+// as the main viewport (via ImGui's background draw list, letterboxed),
+// with the render controls in a fixed sidebar on the left — the same
+// layout as the original Qt UI.
 //
 // Headless CLI mode (--headless ...) is added in a later commit.
 
@@ -243,7 +246,7 @@ int main(int argc, char** argv)
                     glGenTextures(1, &texture);
                 glBindTexture(GL_TEXTURE_2D, texture);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, job.width, job.height, 0,
                              GL_RGB, GL_UNSIGNED_BYTE, job.pixels.data());
                 have_image = true;
@@ -255,16 +258,26 @@ int main(int argc, char** argv)
             }
         }
 
-        ImGui::Begin("Render", nullptr, ImGuiWindowFlags_NoCollapse);
-        ImGui::TextUnformatted("RayTracer — Ray Tracing in One Weekend");
+        // Sidebar (left, like the Qt UI): fixed position and size, full
+        // height; the rendered image fills the rest of the window.
+        const float sidebar_w = 360.0f;
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(
+            ImVec2(sidebar_w, ImGui::GetIO().DisplaySize.y),
+            ImGuiCond_Always);
+        ImGui::Begin("Render", nullptr,
+                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+        ImGui::TextUnformatted("RayTracer - Ray Tracing in One Weekend");
         ImGui::Separator();
 
         ImGui::SliderInt("Width", &width, 64, 1024);
         ImGui::SliderInt("Height", &height, 64, 1024);
-        ImGui::SliderInt("Samples per pixel", &samples, 1, 1000);
+        ImGui::SliderInt("Samples", &samples, 1, 1000);
         ImGui::Combo("Scene", &scene_index, scene_items,
                      IM_ARRAYSIZE(scene_items));
-        ImGui::Text("Samples: 1-10 preview, 100 draft, 1000 full quality.");
+        ImGui::TextWrapped(
+            "Samples: 1-10 preview, 100 draft, 1000 full quality.");
 
         if (ImGui::Button("Render") && !job.running.load()) {
             if (job.worker.joinable())
@@ -298,23 +311,32 @@ int main(int argc, char** argv)
         ImGui::TextUnformatted(status.c_str());
         ImGui::End();
 
+        // Main viewport: draw the rendered image into the area right of
+        // the sidebar, letterboxed to preserve its aspect ratio. The
+        // background draw list is rendered behind the sidebar window.
+        // (No custom shader/VAO needed — this reuses ImGui's own
+        // rendering, which is why it also works on Windows, where
+        // opengl32.lib only exports GL 1.1.)
         if (have_image && texture != 0) {
-            ImGui::Begin("Image", nullptr, ImGuiWindowFlags_NoCollapse);
-            const ImVec2 avail = ImGui::GetContentRegionAvail();
-            float scale = std::min(avail.x / static_cast<float>(job.width),
-                                   avail.y / static_cast<float>(job.height));
-            if (scale > 1.0f)
-                scale = 1.0f;
-            ImGui::Image(static_cast<ImTextureID>(texture),
-                         ImVec2(job.width * scale, job.height * scale));
-            ImGui::End();
+            const ImVec2 display = ImGui::GetIO().DisplaySize;
+            const float avail_x = display.x - sidebar_w;
+            const float avail_y = display.y;
+            const float scale =
+                std::min(avail_x / static_cast<float>(job.width),
+                         avail_y / static_cast<float>(job.height));
+            const ImVec2 img_size(job.width * scale, job.height * scale);
+            const ImVec2 p_min(sidebar_w + (avail_x - img_size.x) * 0.5f,
+                               (avail_y - img_size.y) * 0.5f);
+            const ImVec2 p_max(p_min.x + img_size.x, p_min.y + img_size.y);
+            ImGui::GetBackgroundDrawList()->AddImage(
+                static_cast<ImTextureID>(texture), p_min, p_max);
         }
 
         ImGui::Render();
         int display_w = 0, display_h = 0;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClearColor(0.07f, 0.07f, 0.07f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
