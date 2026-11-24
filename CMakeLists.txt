@@ -43,6 +43,14 @@ find_package(imgui REQUIRED)
 find_package(stb REQUIRED)
 find_package(OpenGL REQUIRED)
 
+# Warning/optimisation flags: -Wall -Wextra are GCC/Clang only — MSVC
+# rejects -Wextra with D8021, so use /W4 there.
+if(MSVC)
+    set(_rt_compile_options /O2 /W4)
+else()
+    set(_rt_compile_options -O2 -Wall -Wextra)
+endif()
+
 # --- Render core (Qt-free, unchanged from the original apart from the
 # --- RayTracer API: configurable samples / scene, see raytracer.h) ---
 add_library(raytracer_core STATIC
@@ -71,7 +79,7 @@ add_library(raytracer_core STATIC
     aabox.cpp
 )
 target_link_libraries(raytracer_core PUBLIC glm::glm OpenMP::OpenMP_CXX)
-target_compile_options(raytracer_core PRIVATE -O2 -Wall -Wextra)
+target_compile_options(raytracer_core PRIVATE ${_rt_compile_options})
 
 # --- Executable: GLFW + Dear ImGui GUI, plus --headless CLI mode ---
 # The Conan imgui package ships the GLFW/OpenGL3 backends under
@@ -105,4 +113,4 @@ target_link_libraries(RayTracerModern PRIVATE
     stb::stb
     OpenGL::GL
 )
-target_compile_options(RayTracerModern PRIVATE -O2 -Wall -Wextra)
+target_compile_options(RayTracerModern PRIVATE ${_rt_compile_options})
