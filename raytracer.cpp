@@ -66,8 +66,10 @@ glm::vec3 RayTracer::color(const Ray& r, const Hitable& world, int depth)
         return emitted;
     }
 
-    return glm::vec3(0);
-
+    // Miss: the sky gradient from the book. This used to be dead code
+    // behind an early `return glm::vec3(0)` (inherited from the original
+    // Qt code), which made any scene without a light source — the book
+    // cover and the simple scene — render entirely black.
     auto dir = r.dir();
     float t = 0.5f*(dir.y + 1.0);
     return glm::mix(glm::vec3(1), glm::vec3(0.5, 0.7, 1.0), t);
