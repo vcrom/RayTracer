@@ -70,6 +70,7 @@ add_library(raytracer_core STATIC
     checkertexture.cpp
     perlin.cpp
     noisetexture.cpp
+    gradienttexture.cpp
     diffuselight.cpp
     material.cpp
     xyrect.cpp

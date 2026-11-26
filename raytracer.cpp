@@ -15,6 +15,7 @@
 #include "checkertexture.h"
 #include "noisetexture.h"
 #include "diffuselight.h"
+#include "gradienttexture.h"
 #include "xyrect.h"
 #include "xzrect.h"
 #include "yzrect.h"
@@ -66,19 +67,26 @@ glm::vec3 RayTracer::color(const Ray& r, const Hitable& world, int depth)
         return emitted;
     }
 
-    // Miss: the sky gradient from the book. This used to be dead code
-    // behind an early `return glm::vec3(0)` (inherited from the original
-    // Qt code), which made any scene without a light source — the book
-    // cover and the simple scene — render entirely black.
-    auto dir = r.dir();
-    float t = 0.5f*(dir.y + 1.0);
-    return glm::mix(glm::vec3(1), glm::vec3(0.5, 0.7, 1.0), t);
+    // Miss: no light — the sky is a real object now (skySphere() in every
+    // scene builder), so a ray that reaches it was already killed there.
+    return glm::vec3(0);
 
+}
+
+// A huge emissive sphere enclosing the scene, textured with the book's
+// sky gradient: the sky is a real object, so a ray that reaches it is
+// killed there and returns its light instead of falling through to a
+// background colour in the tracer.
+std::unique_ptr<Hitable> skySphere()
+{
+    return std::unique_ptr<Hitable>(new Sphere(glm::vec3(0, 0, 0), 10000,
+        std::shared_ptr<Material>(new DiffuseLight(std::shared_ptr<Texture>(new GradientTexture())))));
 }
 
 BVH initScene(float t0, float t1)
 {
     std::vector<std::unique_ptr<Hitable>> list;
+    list.push_back(skySphere());
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,0,-1), 0.5, std::shared_ptr<Material>(new Lambertian(glm::vec3(0.8, 0.3, 0.3))))));
     //list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,0,-1), 0.5, std::shared_ptr<Material>(new Lambertian(glm::vec3(0.8, 0.3, 0.3))))));
 
@@ -94,6 +102,7 @@ BVH initScene(float t0, float t1)
 BVH bookCover(float t0, float t1)
 {
     std::vector<std::unique_ptr<Hitable>> list;
+    list.push_back(skySphere());
     std::shared_ptr<Texture> tex = std::shared_ptr<Texture>(new CheckerTexture(std::shared_ptr<Texture>(new ConstantTexture(glm::vec3(1))), std::shared_ptr<Texture>(new ConstantTexture(glm::vec3(0)))));
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,-500,0), 500, std::shared_ptr<Material>(new Lambertian(tex)))));
 
@@ -167,6 +176,7 @@ HitableList bookCoverList(float t0, float t1)
 BVH basicScene(float t0, float t1)
 {
     std::vector<std::unique_ptr<Hitable>> list;
+    list.push_back(skySphere());
     std::shared_ptr<Texture> check_tex = std::shared_ptr<Texture>(new CheckerTexture(std::shared_ptr<Texture>(new ConstantTexture(glm::vec3(1))), std::shared_ptr<Texture>(new ConstantTexture(glm::vec3(0)))));
     std::shared_ptr<Texture> noise_text = std::shared_ptr<Texture>(new NoiseTexture(5.0f));
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,-500,0), 500, std::shared_ptr<Material>(new Lambertian(noise_text)))));
@@ -190,6 +200,7 @@ BVH basicScene(float t0, float t1)
 BVH cornellBox(float t0, float t1)
 {
     std::vector<std::unique_ptr<Hitable>> list;
+    list.push_back(skySphere());
     auto red = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.65, 0.05, 0.05)));
     auto white = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.73, 0.73, 0.73)));
     auto green = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.12, 0.45, 0.15)));
