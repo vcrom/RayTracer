@@ -1,5 +1,7 @@
 ## Basic Ray Tracer
 
+[![CI](https://github.com/vcrom/RayTracer/actions/workflows/ci.yml/badge.svg)](https://github.com/vcrom/RayTracer/actions/workflows/ci.yml)
+
 A simple Raytracer following the guidelines of the [Ray Tracing Minibooks](https://raytracing.github.io/) by Peter Shirley.
 
 This is an initial version where I implemented the techniques described in the first book of the series and some of the second.
