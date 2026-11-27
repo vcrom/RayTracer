@@ -3,9 +3,7 @@
 
 #include <atomic>
 #include <glm/glm.hpp>
-#include <memory>
 #include <vector>
-#include "camera.h"
 #include "ray.h"
 #include "hitablelist.h"
 
@@ -43,12 +41,6 @@ inline const char* bvhKindName(BvhKind k)
     }
 }
 
-// Builds the scene's world (primitives + BVH) for the given BVH kind.
-std::unique_ptr<Hitable> buildWorld(Scene scene, BvhKind kind);
-
-// Each scene keeps its original camera.
-Camera cameraForScene(Scene scene, int w, int h);
-
 class RayTracer
 {
 public:
@@ -61,22 +53,18 @@ public:
                                       Scene scene,
                                       std::atomic<int>* rows_done = nullptr,
                                       BvhKind bvh = BvhKind::Midpoint);
-    // Renders a world built beforehand (e.g. by buildWorld), so the
-    // build cost can be timed separately from the render cost.
-    std::vector<unsigned char> render(int width, int height, int samples,
-                                      const Hitable& world, const Camera& cam,
-                                      std::atomic<int>* rows_done = nullptr);
 private:
-    std::vector<std::vector<glm::vec3>> renderWorld(int width, int height,
-                                                    int samples,
-                                                    const Hitable& world,
-                                                    const Camera& cam,
-                                                    std::atomic<int>* rows_done);
+    std::vector<std::vector<glm::vec3>> renderImage(int width, int height,
+                                                    int samples, Scene scene,
+                                                    std::atomic<int>* rows_done,
+                                                    BvhKind bvh);
 
     glm::vec3 color(const Ray& r, const Hitable &world, int depth);
 
     static constexpr int default_samples = 1000;
     static constexpr int max_bounces = 50;
+    static constexpr float time0 = 0.0f;
+    static constexpr float time1 = 1.0f;
 };
 
 #endif // RAYTRACER_H

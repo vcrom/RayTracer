@@ -144,29 +144,3 @@ bool BVH::hit(const Ray& r, float t_min, float t_max, hit_record& rec) const
     }
     return false;
 }
-
-void BVH::stats(int& nodes, int& leaves, int& maxDepth) const
-{
-    nodes = 0;
-    leaves = 0;
-    maxDepth = 0;
-    statsRec(this, nodes, leaves, maxDepth, 1);
-}
-
-void BVH::statsRec(const BVH* node, int& nodes, int& leaves, int& maxDepth, int depth)
-{
-    ++nodes;
-    if(depth > maxDepth)
-        maxDepth = depth;
-    const BVH* left = dynamic_cast<const BVH*>(node->_left.get());
-    const BVH* right = node->_right ? dynamic_cast<const BVH*>(node->_right.get()) : nullptr;
-    if(left == nullptr && right == nullptr)
-    {
-        ++leaves;
-        return;
-    }
-    if(left != nullptr)
-        statsRec(left, nodes, leaves, maxDepth, depth + 1);
-    if(right != nullptr)
-        statsRec(right, nodes, leaves, maxDepth, depth + 1);
-}

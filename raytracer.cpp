@@ -40,18 +40,7 @@ std::vector<uchar> RayTracer::render(int width, int height, int samples,
                                      std::atomic<int>* rows_done,
                                      BvhKind bvh)
 {
-    auto world = buildWorld(scene, bvh);
-    std::cout << "Scene initialized (" << sceneName(scene) << ")" << std::endl;
-    auto cam = cameraForScene(scene, width, height);
-    std::cout << "Cam initialized" << std::endl;
-    return render(width, height, samples, *world, cam, rows_done);
-}
-
-std::vector<uchar> RayTracer::render(int width, int height, int samples,
-                                     const Hitable& world, const Camera& cam,
-                                     std::atomic<int>* rows_done)
-{
-    auto image = renderWorld(width, height, samples, world, cam, rows_done);
+    auto image = renderImage(width, height, samples, scene, rows_done, bvh);
     auto vect = std::vector<unsigned char> (width*height*3, 0);
     for(uint i = 0; i < image.size(); ++i)
         for(uint j = 0; j < image[0].size(); ++j)
@@ -270,41 +259,36 @@ Camera initCamCornell(int w, int h, float time0, float time1)
     return Camera(pos, look_at, up, fov, aspect, aperture, dist_to_focus, time0, time1);
 }
 
-namespace {
-// Motion-blur time range shared by scene construction and cameras.
-constexpr float worldTime0 = 0.0f;
-constexpr float worldTime1 = 1.0f;
-} // namespace
-
-std::unique_ptr<Hitable> buildWorld(Scene scene, BvhKind kind)
-{
-    switch (scene) {
-        case Scene::BookCover: return bookCover(worldTime0, worldTime1, kind);
-        case Scene::Basic:     return basicScene(worldTime0, worldTime1, kind);
-        case Scene::Simple:    return initScene(worldTime0, worldTime1, kind);
-        case Scene::Cornell:
-        default:               return cornellBox(worldTime0, worldTime1, kind);
-    }
-}
-
-Camera cameraForScene(Scene scene, int w, int h)
-{
-    switch (scene) {
-        case Scene::BookCover:
-        case Scene::Simple:    return initCam(w, h, worldTime0, worldTime1);
-        case Scene::Basic:     return initCamBasic(w, h, worldTime0, worldTime1);
-        case Scene::Cornell:
-        default:               return initCamCornell(w, h, worldTime0, worldTime1);
-    }
-}
-
-std::vector<std::vector<glm::vec3>> RayTracer::renderWorld(int width, int height,
-                                                          int samples,
-                                                          const Hitable& world,
-                                                          const Camera& cam,
-                                                          std::atomic<int>* rows_done)
+std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height,
+                                                          int samples, Scene which,
+                                                          std::atomic<int>* rows_done,
+                                                          BvhKind bvh)
 {
     auto image = std::vector<std::vector<glm::vec3>>(height, std::vector<glm::vec3>(width));
+
+    // The original code selected the scene by commenting lines in/out;
+    // it is now a runtime choice. Each scene keeps its original camera.
+    auto scene = [&] {
+        switch (which) {
+            case Scene::BookCover: return bookCover(time0, time1, bvh);
+            case Scene::Basic:     return basicScene(time0, time1, bvh);
+            case Scene::Simple:    return initScene(time0, time1, bvh);
+            case Scene::Cornell:
+            default:               return cornellBox(time0, time1, bvh);
+        }
+    }();
+    Camera cam = [&] {
+        switch (which) {
+            case Scene::BookCover:
+            case Scene::Simple:    return initCam(width, height, time0, time1);
+            case Scene::Basic:     return initCamBasic(width, height, time0, time1);
+            case Scene::Cornell:
+            default:               return initCamCornell(width, height, time0, time1);
+        }
+    }();
+
+    std::cout << "Scene initialized (" << sceneName(which) << ")" << std::endl;
+    std::cout << "Cam initialized" << std::endl;
 
     double start_time = omp_get_wtime();
     // Parallel over rows (was collapse(2) over pixels) so progress can be
@@ -320,7 +304,7 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderWorld(int width, int height
                 auto v = (static_cast<float>(i)+randNum())/static_cast<float>(height);
                 auto u = (static_cast<float>(j)+randNum())/static_cast<float>(width);
                 auto r = cam.getRay(u, v);
-                p_color += color(r, world, 1);
+                p_color += color(r, *scene, 1);
             }
             p_color/=static_cast<float>(samples);
             p_color = glm::pow(p_color, glm::vec3(1/2.2f));
