@@ -82,6 +82,7 @@ std::unique_ptr<Hitable> skySphere()
 BVH initScene(float t0, float t1)
 {
     std::vector<std::unique_ptr<Hitable>> list;
+    list.push_back(skySphere());
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,0,-1), 0.5, std::shared_ptr<Material>(new Lambertian(glm::vec3(0.8, 0.3, 0.3))))));
     //list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,0,-1), 0.5, std::shared_ptr<Material>(new Lambertian(glm::vec3(0.8, 0.3, 0.3))))));
 
