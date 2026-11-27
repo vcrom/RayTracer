@@ -11,6 +11,7 @@
 #include "dielectric.h"
 #include "movingsphere.h"
 #include "bvh.h"
+#include "sahbvh.h"
 #include "constanttexture.h"
 #include "checkertexture.h"
 #include "noisetexture.h"
@@ -36,9 +37,21 @@ std::vector<uchar> RayTracer::render(int width, int height)
 
 std::vector<uchar> RayTracer::render(int width, int height, int samples,
                                      Scene scene,
+                                     std::atomic<int>* rows_done,
+                                     BvhKind bvh)
+{
+    auto world = buildWorld(scene, bvh);
+    std::cout << "Scene initialized (" << sceneName(scene) << ")" << std::endl;
+    auto cam = cameraForScene(scene, width, height);
+    std::cout << "Cam initialized" << std::endl;
+    return render(width, height, samples, *world, cam, rows_done);
+}
+
+std::vector<uchar> RayTracer::render(int width, int height, int samples,
+                                     const Hitable& world, const Camera& cam,
                                      std::atomic<int>* rows_done)
 {
-    auto image = renderImage(width, height, samples, scene, rows_done);
+    auto image = renderWorld(width, height, samples, world, cam, rows_done);
     auto vect = std::vector<unsigned char> (width*height*3, 0);
     for(uint i = 0; i < image.size(); ++i)
         for(uint j = 0; j < image[0].size(); ++j)
@@ -79,7 +92,14 @@ std::unique_ptr<Hitable> skySphere()
         std::shared_ptr<Material>(new DiffuseLight(std::shared_ptr<Texture>(new GradientTexture())))));
 }
 
-BVH initScene(float t0, float t1)
+std::unique_ptr<Hitable> makeBvh(std::vector<std::unique_ptr<Hitable>>& list, float t0, float t1, BvhKind kind)
+{
+    if (kind == BvhKind::Sah)
+        return std::unique_ptr<Hitable>(new SAHBVH(list, t0, t1));
+    return std::unique_ptr<Hitable>(new BVH(list, t0, t1));
+}
+
+std::unique_ptr<Hitable> initScene(float t0, float t1, BvhKind kind)
 {
     std::vector<std::unique_ptr<Hitable>> list;
     list.push_back(skySphere());
@@ -91,11 +111,11 @@ BVH initScene(float t0, float t1)
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(-1, 0,-1), 0.5, std::shared_ptr<Material>(new Dielectric(1.5f)))));
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(-1, 0,-1), -0.45, std::shared_ptr<Material>(new Dielectric(1.5f)))));
     std::cout << "Initializing BVH" << std::endl;
-    return BVH(list, t0, t1);
+    return makeBvh(list, t0, t1, kind);
 }
 
 
-BVH bookCover(float t0, float t1)
+std::unique_ptr<Hitable> bookCover(float t0, float t1, BvhKind kind)
 {
     std::vector<std::unique_ptr<Hitable>> list;
     list.push_back(skySphere());
@@ -130,7 +150,7 @@ BVH bookCover(float t0, float t1)
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(-4,1,0), 1.0, std::shared_ptr<Material>(new Lambertian(glm::vec3(0.4, 0.2, 0.1))))));
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(4,1,0), 1.0, std::shared_ptr<Material>(new Metal(glm::vec3(0.7, 0.6, 0.5), 1.0f)))));
     std::cout << list.size() << std::endl;
-    return BVH(list, t0, t1);
+    return makeBvh(list, t0, t1, kind);
 }
 
 HitableList bookCoverList(float t0, float t1)
@@ -169,7 +189,7 @@ HitableList bookCoverList(float t0, float t1)
     return HitableList(list);
 }
 
-BVH basicScene(float t0, float t1)
+std::unique_ptr<Hitable> basicScene(float t0, float t1, BvhKind kind)
 {
     std::vector<std::unique_ptr<Hitable>> list;
     std::shared_ptr<Texture> check_tex = std::shared_ptr<Texture>(new CheckerTexture(std::shared_ptr<Texture>(new ConstantTexture(glm::vec3(1))), std::shared_ptr<Texture>(new ConstantTexture(glm::vec3(0)))));
@@ -189,10 +209,10 @@ BVH basicScene(float t0, float t1)
     //lights
     list.push_back(std::unique_ptr<Hitable>(new Sphere(glm::vec3(0,6,0), 3, std::shared_ptr<Material>(new DiffuseLight(glm::vec3(1.0))))));
     std::cout << list.size() << std::endl;
-    return BVH(list, t0, t1);
+    return makeBvh(list, t0, t1, kind);
 }
 
-BVH cornellBox(float t0, float t1)
+std::unique_ptr<Hitable> cornellBox(float t0, float t1, BvhKind kind)
 {
     std::vector<std::unique_ptr<Hitable>> list;
     auto red = std::shared_ptr<Material>(new Lambertian(glm::vec3(0.65, 0.05, 0.05)));
@@ -211,7 +231,7 @@ BVH cornellBox(float t0, float t1)
     list.push_back(std::unique_ptr<Hitable>(new XZRect(glm::vec2(213, 343), glm::vec2(227, 332), 554, light)));
 
     std::cout << list.size() << std::endl;
-    return BVH(list, t0, t1);
+    return makeBvh(list, t0, t1, kind);
 }
 
 Camera initCam(int w, int h, float time0, float time1)
@@ -250,35 +270,41 @@ Camera initCamCornell(int w, int h, float time0, float time1)
     return Camera(pos, look_at, up, fov, aspect, aperture, dist_to_focus, time0, time1);
 }
 
-std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height,
-                                                          int samples, Scene which,
+namespace {
+// Motion-blur time range shared by scene construction and cameras.
+constexpr float worldTime0 = 0.0f;
+constexpr float worldTime1 = 1.0f;
+} // namespace
+
+std::unique_ptr<Hitable> buildWorld(Scene scene, BvhKind kind)
+{
+    switch (scene) {
+        case Scene::BookCover: return bookCover(worldTime0, worldTime1, kind);
+        case Scene::Basic:     return basicScene(worldTime0, worldTime1, kind);
+        case Scene::Simple:    return initScene(worldTime0, worldTime1, kind);
+        case Scene::Cornell:
+        default:               return cornellBox(worldTime0, worldTime1, kind);
+    }
+}
+
+Camera cameraForScene(Scene scene, int w, int h)
+{
+    switch (scene) {
+        case Scene::BookCover:
+        case Scene::Simple:    return initCam(w, h, worldTime0, worldTime1);
+        case Scene::Basic:     return initCamBasic(w, h, worldTime0, worldTime1);
+        case Scene::Cornell:
+        default:               return initCamCornell(w, h, worldTime0, worldTime1);
+    }
+}
+
+std::vector<std::vector<glm::vec3>> RayTracer::renderWorld(int width, int height,
+                                                          int samples,
+                                                          const Hitable& world,
+                                                          const Camera& cam,
                                                           std::atomic<int>* rows_done)
 {
     auto image = std::vector<std::vector<glm::vec3>>(height, std::vector<glm::vec3>(width));
-
-    // The original code selected the scene by commenting lines in/out;
-    // it is now a runtime choice. Each scene keeps its original camera.
-    BVH scene = [&] {
-        switch (which) {
-            case Scene::BookCover: return bookCover(time0, time1);
-            case Scene::Basic:     return basicScene(time0, time1);
-            case Scene::Simple:    return initScene(time0, time1);
-            case Scene::Cornell:
-            default:               return cornellBox(time0, time1);
-        }
-    }();
-    Camera cam = [&] {
-        switch (which) {
-            case Scene::BookCover:
-            case Scene::Simple:    return initCam(width, height, time0, time1);
-            case Scene::Basic:     return initCamBasic(width, height, time0, time1);
-            case Scene::Cornell:
-            default:               return initCamCornell(width, height, time0, time1);
-        }
-    }();
-
-    std::cout << "Scene initialized (" << sceneName(which) << ")" << std::endl;
-    std::cout << "Cam initialized" << std::endl;
 
     double start_time = omp_get_wtime();
     // Parallel over rows (was collapse(2) over pixels) so progress can be
@@ -294,7 +320,7 @@ std::vector<std::vector<glm::vec3>> RayTracer::renderImage(int width, int height
                 auto v = (static_cast<float>(i)+randNum())/static_cast<float>(height);
                 auto u = (static_cast<float>(j)+randNum())/static_cast<float>(width);
                 auto r = cam.getRay(u, v);
-                p_color += color(r, scene, 1);
+                p_color += color(r, world, 1);
             }
             p_color/=static_cast<float>(samples);
             p_color = glm::pow(p_color, glm::vec3(1/2.2f));

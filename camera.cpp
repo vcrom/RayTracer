@@ -16,7 +16,7 @@ Camera::Camera(glm::vec3 pos, glm::vec3 look_at, glm::vec3 up, float fov, float 
 }
 
 #include"utils.h"
-Ray Camera::getRay(float u, float v)
+Ray Camera::getRay(float u, float v) const
 {
     glm::vec3 rd = _lens_rad*randUnitDisk();
     auto offset = _u*rd.x + _v*rd.y;

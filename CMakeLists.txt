@@ -66,6 +66,7 @@ add_library(raytracer_core STATIC
     movingsphere.cpp
     aabbox.cpp
     bvh.cpp
+    sahbvh.cpp
     constanttexture.cpp
     checkertexture.cpp
     perlin.cpp
