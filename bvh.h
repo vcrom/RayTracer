@@ -12,11 +12,13 @@ public:
 
     virtual bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const override;
     virtual bool computeAABBox(float t0, float t1, AABBox& bbox) const override;
+    void stats(int& nodes, int& leaves, int& maxDepth) const;
 
 private:
     using uint = unsigned int;
     BVH(std::vector<std::unique_ptr<Hitable>>& l, float t0, float t1, uint le, uint ri);
     void sortHitableList(std::vector<std::unique_ptr<Hitable>>& l, uint le, uint ri);
+    static void statsRec(const BVH* node, int& nodes, int& leaves, int& maxDepth, int depth);
 
 
     AABBox _bbox;

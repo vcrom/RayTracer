@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <optional>
@@ -29,7 +30,12 @@
 #include <thread>
 #include <vector>
 
+#include <omp.h>
+
+#include "bvh.h"
 #include "raytracer.h"
+#include "sahbvh.h"
+#include "utils.h"
 
 namespace {
 
@@ -46,8 +52,7 @@ struct RenderJob {
     std::string error;
 };
 
-void run_render(RenderJob& job, int width, int height, int samples, Scene scene,
-                BvhKind bvh)
+void run_render(RenderJob& job, int width, int height, int samples, Scene scene, BvhKind bvh)
 {
     job.rows_done = 0;
     job.total_rows = height;
@@ -75,6 +80,7 @@ bool save_png(const char* path, const std::vector<unsigned char>& pixels,
 
 const char* scene_items[] = {"Cornell box", "Book cover", "Basic scene",
                              "Simple scene"};
+const char* bvh_items[] = {"Midpoint", "SAH"};
 Scene scene_from_index(int i)
 {
     switch (i) {
@@ -100,12 +106,6 @@ std::optional<Scene> scene_from_name(const char* name)
     return std::nullopt;
 }
 
-const char* bvh_items[] = {"Midpoint", "SAH"};
-BvhKind bvh_from_index(int i)
-{
-    return i == 1 ? BvhKind::Sah : BvhKind::Midpoint;
-}
-
 std::optional<BvhKind> bvh_from_name(const char* name)
 {
     if (std::strcmp(name, "midpoint") == 0)
@@ -115,18 +115,102 @@ std::optional<BvhKind> bvh_from_name(const char* name)
     return std::nullopt;
 }
 
+BvhKind bvh_from_index(int i)
+{
+    return i == 1 ? BvhKind::Sah : BvhKind::Midpoint;
+}
+
+// FNV-1a hash of the pixel bytes, for checking that two renders agree.
+std::uint64_t fnv1a_hash(const std::vector<unsigned char>& bytes)
+{
+    std::uint64_t hash = 14695981039346656037ull;
+    for (unsigned char b : bytes) {
+        hash ^= b;
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+void bvh_stats(const Hitable& world, BvhKind kind, int& nodes, int& leaves, int& maxDepth)
+{
+    nodes = 0;
+    leaves = 0;
+    maxDepth = 0;
+    if (kind == BvhKind::Sah) {
+        if (const auto* b = dynamic_cast<const SAHBVH*>(&world))
+            b->stats(nodes, leaves, maxDepth);
+    } else {
+        if (const auto* b = dynamic_cast<const BVH*>(&world))
+            b->stats(nodes, leaves, maxDepth);
+    }
+}
+
+// Renders every scene with both BVH kinds at a fixed seed and compares
+// build/render times and pixel hashes. Single-threaded: the shared RNG
+// is not thread-safe, so multi-threaded renders would not be repeatable.
+int bench_main(int width, int height, int samples, unsigned seed)
+{
+    omp_set_num_threads(1);
+    std::fprintf(stderr, "BVH bench: %dx%d, %d samples, seed %u, 1 thread\n",
+                 width, height, samples, seed);
+    const Scene scenes[] = {Scene::Cornell, Scene::BookCover, Scene::Basic,
+                            Scene::Simple};
+    for (Scene scene : scenes) {
+        double render_secs[2] = {0.0, 0.0};
+        std::uint64_t hashes[2] = {0, 0};
+        const BvhKind kinds[] = {BvhKind::Midpoint, BvhKind::Sah};
+        for (int k = 0; k < 2; ++k) {
+            seedRand(seed);
+            const auto t0 = std::chrono::steady_clock::now();
+            auto world = buildWorld(scene, kinds[k]);
+            const auto t1 = std::chrono::steady_clock::now();
+            auto cam = cameraForScene(scene, width, height);
+            // Re-seed before rendering: the midpoint build consumes random
+            // numbers (random axis choice) while the SAH build does not,
+            // so the render must start from the same RNG state in both.
+            seedRand(seed);
+            RayTracer rt;
+            std::vector<unsigned char> pixels =
+                rt.render(width, height, samples, *world, cam);
+            const auto t2 = std::chrono::steady_clock::now();
+            const double build = std::chrono::duration<double>(t1 - t0).count();
+            const double render = std::chrono::duration<double>(t2 - t1).count();
+            render_secs[k] = render;
+            hashes[k] = fnv1a_hash(pixels);
+            int nodes = 0, leaves = 0, maxDepth = 0;
+            bvh_stats(*world, kinds[k], nodes, leaves, maxDepth);
+            std::fprintf(stderr,
+                         "  %-12s %-9s build %7.3fs render %7.3fs "
+                         "nodes %5d leaves %5d depth %3d hash %016llx\n",
+                         sceneName(scene), bvhKindName(kinds[k]), build, render,
+                         nodes, leaves, maxDepth,
+                         static_cast<unsigned long long>(hashes[k]));
+        }
+        const double ratio = render_secs[0] > 0.0 ? render_secs[1] / render_secs[0] : 0.0;
+        std::fprintf(stderr,
+                     "  %-12s SAH/midpoint render ratio: %.2fx, pixels %s\n",
+                     sceneName(scene), ratio,
+                     hashes[0] == hashes[1] ? "identical" : "DIFFER");
+    }
+    return 0;
+}
+
 void print_usage(const char* prog)
 {
     std::fprintf(stderr,
         "Usage:\n"
         "  %s [--headless] [--width N] [--height N] [--samples N]\n"
         "     [--scene cornell|bookcover|basic|simple] [--output FILE]\n"
-        "     [--bvh midpoint|sah]\n"
+        "     [--bvh midpoint|sah] [--seed N]\n"
+        "  %s --bench [--width N] [--height N] [--samples N] [--seed N]\n"
         "\n"
         "Without --headless, opens the GLFW + ImGui GUI.\n"
         "With --headless, renders without a display and writes a PNG.\n"
-        "Headless defaults: 256x256, 100 samples, cornell, midpoint, out.png.\n",
-        prog);
+        "Headless defaults: 256x256, 100 samples, cornell, out.png, midpoint BVH.\n"
+        "--bench renders all four scenes with both BVH kinds at a fixed seed\n"
+        "and compares build/render times and pixel hashes.\n"
+        "Bench defaults: 256x256, 50 samples, seed 42.\n",
+        prog, prog);
 }
 
 // Headless mode: render on the calling thread, print progress to stderr.
@@ -136,8 +220,12 @@ int headless_main(int argc, char** argv)
     int height = 256;
     int samples = 100;
     Scene scene = Scene::Cornell;
-    BvhKind bvh = BvhKind::Midpoint;
     const char* output = "out.png";
+    BvhKind bvh = BvhKind::Midpoint;
+    bool bench = false;
+    bool seed_given = false;
+    bool samples_given = false;
+    unsigned seed = 42;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -152,12 +240,15 @@ int headless_main(int argc, char** argv)
             return 0;
         } else if (arg == "--headless") {
             continue;
+        } else if (arg == "--bench") {
+            bench = true;
         } else if ((v = value("--width")) != nullptr) {
             width = std::atoi(v);
         } else if ((v = value("--height")) != nullptr) {
             height = std::atoi(v);
         } else if ((v = value("--samples")) != nullptr) {
             samples = std::atoi(v);
+            samples_given = true;
         } else if ((v = value("--scene")) != nullptr) {
             auto s = scene_from_name(v);
             if (!s) {
@@ -166,16 +257,19 @@ int headless_main(int argc, char** argv)
                 return 1;
             }
             scene = *s;
-        } else if ((v = value("--output")) != nullptr) {
-            output = v;
         } else if ((v = value("--bvh")) != nullptr) {
-            auto b = bvh_from_name(v);
-            if (!b) {
+            auto k = bvh_from_name(v);
+            if (!k) {
                 std::fprintf(stderr, "Unknown BVH kind '%s'\n", v);
                 print_usage(argv[0]);
                 return 1;
             }
-            bvh = *b;
+            bvh = *k;
+        } else if ((v = value("--seed")) != nullptr) {
+            seed = static_cast<unsigned>(std::atoi(v));
+            seed_given = true;
+        } else if ((v = value("--output")) != nullptr) {
+            output = v;
         } else {
             std::fprintf(stderr, "Unknown argument '%s'\n", arg.c_str());
             print_usage(argv[0]);
@@ -186,14 +280,22 @@ int headless_main(int argc, char** argv)
         std::fprintf(stderr, "width, height and samples must be positive\n");
         return 1;
     }
+    if (bench && !samples_given)
+        samples = 50;
 
+    if (bench)
+        return bench_main(width, height, samples, seed);
+
+    if (seed_given)
+        seedRand(seed);
     std::fprintf(stderr, "Rendering %s %dx%d, %d samples, %s BVH...\n",
                  sceneName(scene), width, height, samples, bvhKindName(bvh));
     std::atomic<int> rows_done{0};
     const auto t0 = std::chrono::steady_clock::now();
     RayTracer rt;
     std::vector<unsigned char> pixels =
-        rt.render(width, height, samples, scene, &rows_done, bvh);
+        rt.render(width, height, samples, scene, &rows_done, bvh,
+                  seed_given ? std::optional<unsigned>(seed) : std::nullopt);
     const auto t1 = std::chrono::steady_clock::now();
     const double seconds = std::chrono::duration<double>(t1 - t0).count();
     std::fprintf(stderr, "Rendered in %.1f s.\n", seconds);
@@ -210,7 +312,8 @@ int headless_main(int argc, char** argv)
 int main(int argc, char** argv)
 {
     for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--headless") == 0)
+        if (std::strcmp(argv[i], "--headless") == 0 ||
+            std::strcmp(argv[i], "--bench") == 0)
             return headless_main(argc, argv);
         if (std::strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);

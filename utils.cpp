@@ -1,21 +1,22 @@
 #include "utils.h"
 
 #include <random>
-#include <chrono>
 
-//init random gen
+// One engine for all random draws, seeded from the OS by default;
+// seedRand() re-seeds it, which makes scene construction and rendering
+// repeatable for a given seed.
 static std::uniform_real_distribution<float> distribution(0.0,1.0f);
 static std::random_device random_dev;
-static std::mt19937 g1 (std::chrono::system_clock::now().time_since_epoch().count());
+static std::mt19937 g1(random_dev());
+
+void seedRand(unsigned seed)
+{
+    g1.seed(seed);
+}
 
 //Ray tracing
 float randNum()
 {
-    //return drand48();
-    //return static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
-    return distribution(random_dev);
-    //unsigned seed1 = std::chrono::system_clock::now().time_since_epoch().count();
-    //std::mt19937 g1 (seed1);
     return distribution(g1);
 }
 
