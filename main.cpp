@@ -46,7 +46,8 @@ struct RenderJob {
     std::string error;
 };
 
-void run_render(RenderJob& job, int width, int height, int samples, Scene scene)
+void run_render(RenderJob& job, int width, int height, int samples, Scene scene,
+                BvhKind bvh)
 {
     job.rows_done = 0;
     job.total_rows = height;
@@ -55,7 +56,7 @@ void run_render(RenderJob& job, int width, int height, int samples, Scene scene)
     const auto t0 = std::chrono::steady_clock::now();
     try {
         RayTracer rt;
-        job.pixels = rt.render(width, height, samples, scene, &job.rows_done);
+        job.pixels = rt.render(width, height, samples, scene, &job.rows_done, bvh);
     } catch (const std::exception& e) {
         job.error = e.what();
     }
@@ -99,16 +100,32 @@ std::optional<Scene> scene_from_name(const char* name)
     return std::nullopt;
 }
 
+const char* bvh_items[] = {"Midpoint", "SAH"};
+BvhKind bvh_from_index(int i)
+{
+    return i == 1 ? BvhKind::Sah : BvhKind::Midpoint;
+}
+
+std::optional<BvhKind> bvh_from_name(const char* name)
+{
+    if (std::strcmp(name, "midpoint") == 0)
+        return BvhKind::Midpoint;
+    if (std::strcmp(name, "sah") == 0)
+        return BvhKind::Sah;
+    return std::nullopt;
+}
+
 void print_usage(const char* prog)
 {
     std::fprintf(stderr,
         "Usage:\n"
         "  %s [--headless] [--width N] [--height N] [--samples N]\n"
         "     [--scene cornell|bookcover|basic|simple] [--output FILE]\n"
+        "     [--bvh midpoint|sah]\n"
         "\n"
         "Without --headless, opens the GLFW + ImGui GUI.\n"
         "With --headless, renders without a display and writes a PNG.\n"
-        "Headless defaults: 256x256, 100 samples, cornell, out.png.\n",
+        "Headless defaults: 256x256, 100 samples, cornell, midpoint, out.png.\n",
         prog);
 }
 
@@ -119,6 +136,7 @@ int headless_main(int argc, char** argv)
     int height = 256;
     int samples = 100;
     Scene scene = Scene::Cornell;
+    BvhKind bvh = BvhKind::Midpoint;
     const char* output = "out.png";
 
     for (int i = 1; i < argc; ++i) {
@@ -150,6 +168,14 @@ int headless_main(int argc, char** argv)
             scene = *s;
         } else if ((v = value("--output")) != nullptr) {
             output = v;
+        } else if ((v = value("--bvh")) != nullptr) {
+            auto b = bvh_from_name(v);
+            if (!b) {
+                std::fprintf(stderr, "Unknown BVH kind '%s'\n", v);
+                print_usage(argv[0]);
+                return 1;
+            }
+            bvh = *b;
         } else {
             std::fprintf(stderr, "Unknown argument '%s'\n", arg.c_str());
             print_usage(argv[0]);
@@ -161,13 +187,13 @@ int headless_main(int argc, char** argv)
         return 1;
     }
 
-    std::fprintf(stderr, "Rendering %s %dx%d, %d samples...\n",
-                 sceneName(scene), width, height, samples);
+    std::fprintf(stderr, "Rendering %s %dx%d, %d samples, %s BVH...\n",
+                 sceneName(scene), width, height, samples, bvhKindName(bvh));
     std::atomic<int> rows_done{0};
     const auto t0 = std::chrono::steady_clock::now();
     RayTracer rt;
     std::vector<unsigned char> pixels =
-        rt.render(width, height, samples, scene, &rows_done);
+        rt.render(width, height, samples, scene, &rows_done, bvh);
     const auto t1 = std::chrono::steady_clock::now();
     const double seconds = std::chrono::duration<double>(t1 - t0).count();
     std::fprintf(stderr, "Rendered in %.1f s.\n", seconds);
@@ -222,6 +248,7 @@ int main(int argc, char** argv)
     int height = 240;
     int samples = 1000;
     int scene_index = 0;
+    int bvh_index = 0;
     char save_path[256] = "render.png";
     std::string status = "Ready. Press Render.";
 
@@ -276,6 +303,8 @@ int main(int argc, char** argv)
         ImGui::SliderInt("Samples", &samples, 1, 1000);
         ImGui::Combo("Scene", &scene_index, scene_items,
                      IM_ARRAYSIZE(scene_items));
+        ImGui::Combo("BVH", &bvh_index, bvh_items,
+                     IM_ARRAYSIZE(bvh_items));
         ImGui::TextWrapped(
             "Samples: 1-10 preview, 100 draft, 1000 full quality.");
 
@@ -286,7 +315,8 @@ int main(int argc, char** argv)
             job.done = false;
             status = "Rendering...";
             job.worker = std::thread(run_render, std::ref(job), width, height,
-                                     samples, scene_from_index(scene_index));
+                                     samples, scene_from_index(scene_index),
+                                     bvh_from_index(bvh_index));
         }
         ImGui::SameLine();
         ImGui::BeginDisabled(!have_image);

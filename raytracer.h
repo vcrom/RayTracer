@@ -26,6 +26,21 @@ inline const char* sceneName(Scene s)
     return "Unknown";
 }
 
+// How the scene's acceleration structure is built.
+enum class BvhKind {
+    Midpoint,   // Random axis, median split (the original BVH)
+    Sah         // Binned surface area heuristic (SAHBVH)
+};
+
+inline const char* bvhKindName(BvhKind k)
+{
+    switch (k) {
+        case BvhKind::Sah:      return "SAH";
+        case BvhKind::Midpoint:
+        default:                return "Midpoint";
+    }
+}
+
 class RayTracer
 {
 public:
@@ -36,11 +51,13 @@ public:
     std::vector<unsigned char> render(int width, int height);
     std::vector<unsigned char> render(int width, int height, int samples,
                                       Scene scene,
-                                      std::atomic<int>* rows_done = nullptr);
+                                      std::atomic<int>* rows_done = nullptr,
+                                      BvhKind bvh = BvhKind::Midpoint);
 private:
     std::vector<std::vector<glm::vec3>> renderImage(int width, int height,
                                                     int samples, Scene scene,
-                                                    std::atomic<int>* rows_done);
+                                                    std::atomic<int>* rows_done,
+                                                    BvhKind bvh);
 
     glm::vec3 color(const Ray& r, const Hitable &world, int depth);
 
