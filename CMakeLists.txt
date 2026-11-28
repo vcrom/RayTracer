@@ -37,7 +37,6 @@ find_package(imgui REQUIRED)
 find_package(stb REQUIRED)
 find_package(OpenGL REQUIRED)
 
-
 # --- RayTracer API: configurable samples / scene, see raytracer.h) ---
 add_library(raytracer_core STATIC
     ray.cpp
@@ -56,6 +55,7 @@ add_library(raytracer_core STATIC
     checkertexture.cpp
     perlin.cpp
     noisetexture.cpp
+    gradienttexture.cpp
     diffuselight.cpp
     material.cpp
     xyrect.cpp
